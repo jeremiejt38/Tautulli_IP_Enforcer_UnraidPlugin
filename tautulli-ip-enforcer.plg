@@ -6,7 +6,7 @@
 <!ENTITY launch      "Settings/tautulli-ip-enforcer">
 <!ENTITY pluginURL   "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.plg">
 <!ENTITY icon        "tautulli-ip-enforcer.png">
-<!ENTITY description "Protégez votre serveur Plex en contrôlant les IPs bannies et les limites de streams simultanés via Tautulli.">
+<!ENTITY description "Protect your Plex server by managing banned IPs and simultaneous stream limits via Tautulli.">
 ]>
 <PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" icon="&icon;" description="&description;">
 <CHANGES>
