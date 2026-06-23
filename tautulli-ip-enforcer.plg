@@ -1,4 +1,4 @@
-﻿<?xml version='1.0' standalone='yes'?>
+<?xml version='1.0' standalone='yes'?>
 <!DOCTYPE PLUGIN [
 <!ENTITY name      "tautulli-ip-enforcer">
 <!ENTITY author    "jeremiejt38">
@@ -6,34 +6,22 @@
 <!ENTITY launch    "Settings/tautulli-ip-enforcer">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.plg">
 ]>
-<PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" icon="https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/icon.png">
+<PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;">
 <CHANGES>
 ###2026.06.23
-- Version initiale du plugin Unraid
+- Version initiale
 </CHANGES>
 <FILE Run="/bin/bash">
 <INLINE>
-#!/bin/bash
-PLUGIN_DIR="/boot/config/plugins/tautulli-ip-enforcer"
-echo "--- Tautulli IP Enforcer : Installation ---"
-mkdir -p "$PLUGIN_DIR"
-echo "Telechargement des fichiers du plugin..."
-curl -sSL "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.page" -o "$PLUGIN_DIR/tautulli-ip-enforcer.page"
-curl -sSL "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.php" -o "$PLUGIN_DIR/tautulli-ip-enforcer.php"
-chmod +x "$PLUGIN_DIR/tautulli-ip-enforcer.page"
-chmod +x "$PLUGIN_DIR/tautulli-ip-enforcer.php"
-echo "--- Installation terminee ---"
+mkdir -p /boot/config/plugins/tautulli-ip-enforcer
+curl -sSL "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.page" -o "/boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.page"
+curl -sSL "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.php" -o "/boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.php"
 </INLINE>
 </FILE>
 <FILE Run="/bin/bash" Method="remove">
 <INLINE>
-#!/bin/bash
-echo "--- Tautulli IP Enforcer : Desinstallation ---"
 rm -f /boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.page
 rm -f /boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.php
-rm -f /boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.plg
-echo "Donnees utilisateur conservees dans /boot/config/plugins/tautulli-ip-enforcer/"
-echo "--- Desinstallation terminee ---"
 </INLINE>
 </FILE>
 </PLUGIN>
