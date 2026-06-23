@@ -1,33 +1,39 @@
-<?xml version="1.0" encoding="utf-8"?>
-<plugin name="Tautulli IP Enforcer" author="jeremiejt38" version="2026.06.23" support="https://github.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin">
-    <name>Tautulli IP Enforcer</name>
-    <description>Plugin to manage banned IPs and user stream limits for Tautulli/Plex USING Fork of Dosk3n/Tautulli_IP_Enforcer.</description>
-    <author>jeremiejt38</author>
-    <version>2026.06.23</version>
-    <min_version>6.0</min_version>
-    <icon>https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/icon.png</icon>
-    <install><![CDATA[
-        # Create plugin directory
-        mkdir -p /boot/config/plugins/tautulli-ip-enforcer
-        
-        # Copy plugin files
-        cp -r %%DIR%%/* /boot/config/plugins/tautulli-ip-enforcer/
-        
-        # Make PHP files executable
-        chmod +x /boot/config/plugins/tautulli-ip-enforcer/*.page
-        chmod +x /boot/config/plugins/tautulli-ip-enforcer/*.php
-    ]]></install>
-    <uninstall><![CDATA[
-        # Keep user data (settings and txt files) - optional cleanup
-        # To fully remove: rm -rf /boot/config/plugins/tautulli-ip-enforcer
-    ]]></uninstall>
-    <files>
-        <file name="tautulli-ip-enforcer.page" path="/boot/config/plugins/tautulli-ip-enforcer/" executable="true" />
-        <file name="tautulli-ip-enforcer.php" path="/boot/config/plugins/tautulli-ip-enforcer/" executable="true" />
-    </files>
-    <changelog>
-        <change date="2026-06-23" version="1.0.0">
-            - Version initiale du plugin Unraid
-        </change>
-    </changelog>
-</plugin>
+<?xml version='1.0' standalone='yes'?>
+<!DOCTYPE PLUGIN [
+<!ENTITY name      "tautulli-ip-enforcer">
+<!ENTITY author    "jeremiejt38">
+<!ENTITY version   "2026.06.23">
+<!ENTITY launch    "Settings/tautulli-ip-enforcer">
+<!ENTITY pluginURL "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.plg">
+]>
+<PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" icon="https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/icon.png">
+<CHANGES>
+###2026.06.23
+- Version initiale du plugin Unraid
+</CHANGES>
+<FILE Run="/bin/bash">
+<INLINE>
+#!/bin/bash
+PLUGIN_DIR="/boot/config/plugins/tautulli-ip-enforcer"
+echo "--- Tautulli IP Enforcer : Installation ---"
+mkdir -p "$PLUGIN_DIR"
+echo "Telechargement des fichiers du plugin..."
+curl -sSL "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.page" -o "$PLUGIN_DIR/tautulli-ip-enforcer.page"
+curl -sSL "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.php" -o "$PLUGIN_DIR/tautulli-ip-enforcer.php"
+chmod +x "$PLUGIN_DIR/tautulli-ip-enforcer.page"
+chmod +x "$PLUGIN_DIR/tautulli-ip-enforcer.php"
+echo "--- Installation terminee ---"
+</INLINE>
+</FILE>
+<FILE Run="/bin/bash" Method="remove">
+<INLINE>
+#!/bin/bash
+echo "--- Tautulli IP Enforcer : Desinstallation ---"
+rm -f /boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.page
+rm -f /boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.php
+rm -f /boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.plg
+echo "Donnees utilisateur conservees dans /boot/config/plugins/tautulli-ip-enforcer/"
+echo "--- Desinstallation terminee ---"
+</INLINE>
+</FILE>
+</PLUGIN>
