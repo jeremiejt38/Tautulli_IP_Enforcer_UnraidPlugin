@@ -6,11 +6,13 @@ Tag="shield"
 <?php
 /* Tautulli IP Enforcer - Unraid Plugin Page */
 /* Author: jeremiejt38 */
+/* Description: Protégez votre serveur Plex en contrôlant les IPs bannies et les limites de streams simultanés via Tautulli. */
 
 $plugin_url = "/plugins/tautulli-ip-enforcer/";
 $plugin_config = "/boot/config/plugins/tautulli-ip-enforcer/settings.cfg";
 $default_script_path = "/mnt/user/appdata/tautulli/Tautulli_IP_Enforcer/";
 $github_repo = "https://github.com/jeremiejt38/Tautulli_IP_Enforcer.git";
+
 
 // Load or create settings
 if (file_exists($plugin_config)) {
