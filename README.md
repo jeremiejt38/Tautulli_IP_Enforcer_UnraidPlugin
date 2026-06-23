@@ -1,154 +1,152 @@
-# Tautulli IP Enforcer - Plugin Unraid
+# Tautulli IP Enforcer - Unraid Plugin
 
-Plugin Unraid pour gérer les IPs bannies et les limites de streams utilisateurs pour Tautulli/Plex.
+Unraid plugin for managing banned IPs and user stream limits for Tautulli/Plex.
 
 ## 📋 Description
 
-Ce plugin permet de gérer dynamiquement les paramètres du script Tautulli IP Enforcer sans avoir à modifier les fichiers manuellement via un éditeur de texte.
+This plugin allows you to dynamically manage the Tautulli IP Enforcer script settings without having to manually edit files using a text editor. **Features:**
+- 🚫 Banned IP management (add/remove)
+- 👥 Stream limits per user (add/edit/remove)
+- 📋 Enforcement log viewer
+- ⚙️ Configuration of Tautulli location and settings
+- 🔧 systemd service installation and management
 
-**Fonctionnalités :**
-- 🚫 Gestion des IPs bannies (ajout/suppression)
-- 👥 Limites de streams par utilisateur (ajout/modification/suppression)
-- 📋 Visualisation des logs d'enforcement
-- ⚙️ Configuration de l'emplacement et des paramètres Tautulli
-- 🔧 Installation et gestion du service systemd
+## ⚠️ Prerequisites
 
-## ⚠️ Prérequis
-
-- **Unraid 6.x ou 7.x**
-- **Tautulli** installé (via Docker ou native)
-- Accès SSH pour certaines fonctionnalités avancées
+- **Unraid 6.x or 7.x**
+- **Tautulli** installed (via Docker or natively)
+- SSH access for certain advanced features
 
 ## 📥 Installation
 
-### Méthode 1 : Via le plugin (recommandé)
+### Method 1: Via the plugin (recommended)
 
-1. Placez le fichier `tautulli-ip-enforcer.plg` sur votre serveur Unraid (dans `/boot/config/plugins/`)
-2. Ou utilisez une URL vers le fichier `.plg` hébergé sur GitHub :
-   ```
-   https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.plg
-   ```
+1. Place the `tautulli-ip-enforcer.plg` file on your Unraid server (in `/boot/config/plugins/`)
+2. Or use the URL for the `.plg` file hosted on GitHub:
+```
+https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.plg
+```
 
-3. Allez dans **Paramètres → Plugins** dans Unraid
-4. Cliquez sur **Install** à côté du plugin
+3. Go to **Settings → Plugins** in Unraid
+4. Click **Install** next to the plugin
 
-### Méthode 2 : Installation manuelle
+### Method 2: Manual installation
 
-1. Clonez ce dépôt sur votre serveur :
-   ```bash
-   git clone https://github.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin.git
-   ```
+1. Clone this repository to your server:
+```bash
+git clone https://github.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin.git
+```
 
-2. Copiez les fichiers dans le dossier plugins :
-   ```bash
-   cp -r Tautulli_IP_Enforcer_UnraidPlugin/* /boot/config/plugins/tautulli-ip-enforcer/
-   chmod +x /boot/config/plugins/tautulli-ip-enforcer/*.page
-   chmod +x /boot/config/plugins/tautulli-ip-enforcer/*.php
-   ```
+2. Copy the files to the plugins folder:
+```bash
+cp -r Tautulli_IP_Enforcer_UnraidPlugin/* /boot/config/plugins/tautulli-ip-enforcer/
+chmod +x /boot/config/plugins/tautulli-ip-enforcer/*.page
+chmod +x /boot/config/plugins/tautulli-ip-enforcer/*.php
+```
 
-3. Rafraîchissez la page Unraid
+3. Refresh the Unraid page
 
-## 🚀 Configuration Initiale
+## 🚀 Initial Configuration
 
-Au premier lancement, le plugin affiche un assistant d'installation :
+Upon first launch, the plugin displays a setup wizard:
 
-1. **Vérifiez l'emplacement** du script (défaut : `/mnt/user/appdata/tautulli/Tautulli_IP_Enforcer/`)
-2. **Entrez l'adresse IP** de votre instance Tautulli
-3. **Entrez le port** de Tautulli (défaut : `8181`)
-4. **Entrez votre clé API** Tautulli
+1. **Verify the script location** (default: `/mnt/user/appdata/tautulli/Tautulli_IP_Enforcer/`)
+2. **Enter the IP address** of your Tautulli instance
+3. **Enter the Tautulli port** (default: `8181`)
+4. **Enter your Tautulli API key**
 
-Cliquez sur **Installer** pour :
-- Cloner automatiquement le dépôt GitHub du script
-- Créer les fichiers de configuration nécessaires
-- Sauvegarder vos paramètres
+Click **Install** to:
+- Automatically clone the script's GitHub repository
+- Create the necessary configuration files
+- Save your settings
 
-## 📖 Utilisation
+## 📖 Usage
 
-### Onglet IPs Bannies
+### Banned IPs Tab
 
-Ajoutez les adresses IP à bannir. Une IP bannie verra toutes ses sessions Plex terminées.
+Add the IP addresses to be banned. Any banned IP will have all its active Plex sessions terminated.
 
-**Formats supportés :**
-- IPv4 (ex: `192.168.1.100`)
-- IPv6 (ex: `2001:0db8:85a3:0000:0000:8a2e:0370:7334`)
+**Supported formats:**
+- IPv4 (e.g., `192.168.1.100`)
+- IPv6 (e.g., `2001:0db8:85a3:0000:0000:8a2e:0370:7334`)
 
-### Onglet Limites Utilisateurs
+### User Limits Tab
 
-Définissez le nombre maximum d'IPs uniques autorisées par utilisateur Plex.
+Define the maximum number of unique IPs allowed per Plex user.
 
-**Exemple :**
-- `Jean;1` → Jean peut utiliser 1 seule IP unique
-- `Marie;2` → Marie peut utiliser 2 IPs uniques différentes
-- `Pierre;5` → Pierre peut utiliser jusqu'à 5 IPs uniques
+**Example:**
+- `Jean;1` → Jean can use only 1 unique IP
+- `Marie;2` → Marie can use 2 different unique IPs
+- `Pierre;5` → Pierre can use up to 5 unique IPs
 
-### Onglet Logs
+### Logs Tab
 
-Visualisez l'historique des actions d'enforcement en temps réel.
+View the history of enforcement actions in real-time.
 
-### Onglet Paramètres
+### Settings Tab
 
-Modifiez l'emplacement des fichiers, les coordonnées Tautulli, et les messages affichés aux utilisateurs.
+Modify file locations, Tautulli connection details, and messages displayed to users.
 
-### Onglet Service
+### Service Tab
 
-Gérez le service systemd :
-- ▶️ **Démarrer** : Lance le service manuellement
-- ⏹️ **Arrêter** : Arrête le service
-- 🔄 **Redémarrer** : Redémarre le service
-- ⚙️ **Installer le service** : Installe le service systemd (à faire une fois)
+Manage the systemd service:
+- ▶️ **Start**: Manually start the service
+- ⏹️ **Stop**: Stop the service
+- 🔄 **Restart**: Restart the service
+- ⚙️ **Install Service**: Install the systemd service (perform once)
 
-## 🔧 Service Systemd
+## 🔧 Systemd Service
 
-Le script tourne en continu via un service systemd. Pour l'activer au démarrage :
+The script runs continuously via a systemd service. To enable it at startup:
 
 ```bash
 sudo systemctl enable tautulliipenforcer.service
 ```
 
-## 📁 Structure des fichiers
+## 📁 File Structure
 
 ```
 /mnt/user/appdata/tautulli/Tautulli_IP_Enforcer/
-├── tautulliIpEnforcer.py      # Script principal
-├── tautulliIpEnforcer.sh      # Script de boucle
-├── tautulliipenforcer.service # Service systemd
-├── TautulliApiHandler.py      # Module API
-├── banned_ips.txt            # IPs bannies (géré via plugin)
-├── concurrent_ip_limit.txt   # Limites utilisateurs (géré via plugin)
-└── enforce_log.txt          # Logs d'enforcement
+├── tautulliIpEnforcer.py      # Main script
+├── tautulliIpEnforcer.sh      # Loop script
+├── tautulliipenforcer.service # systemd service
+├── TautulliApiHandler.py      # API module
+├── banned_ips.txt            # Banned IPs (managed via plugin)
+├── concurrent_ip_limit.txt   # User limits (managed via plugin)
+└── enforce_log.txt          # Enforcement logs
 ```
 
-## 🔨 Dépannage
+## 🔨 Troubleshooting
 
-### Le service ne démarre pas
+### The service won't start
 
-1. Vérifiez les logs :
-   ```bash
-   sudo systemctl status tautulliipenforcer.service
-   ```
+1. Check the logs:
+```bash
+sudo systemctl status tautulliipenforcer.service
+```
 
-2. Vérifiez que Tautulli est accessible à l'adresse IP configurée
+2. Verify that Tautulli is accessible at the configured IP address
 
-### Le plugin ne trouve pas les fichiers
+### The plugin cannot find the files
 
-- Vérifiez que le chemin dans les paramètres est correct
-- Vérifiez que les fichiers ont été clonés depuis GitHub
+- Check that the path in the settings is correct
+- Verify that the files have been cloned from GitHub
 
-### Erreur de permission
+### Permission error
 
-Certaines actions (installation du service) nécessitent des droits sudo. Connectez-vous en SSH :
+Some actions (service installation) require sudo privileges. Connect via SSH:
 
 ```bash
 sudo nano /etc/sudoers
-# Ou exécutez les commandes manuellement avec sudo
+# Or run the commands manually with sudo
 ```
 
 ## 📝 License
 
-- Plugin : [GPL-3.0](./LICENSE)
-- Script original : [GPL-3.0](https://github.com/Dosk3n/Tautulli_IP_Enforcer/blob/master/LICENSE)
+- Plugin: [GPL-3.0](./LICENSE)
+- Original script: [GPL-3.0](https://github.com/Dosk3n/Tautulli_IP_Enforcer/blob/master/LICENSE)
 
-## 🙏 Remerciements
+## 🙏 Acknowledgments
 
-- Script original créé par [Dosk3n](https://github.com/Dosk3n/Tautulli_IP_Enforcer)
-- Inspiré par les plugins Unraid de [Squidly271](https://github.com/Squidly271)
+- Original script created by [Dosk3n](https://github.com/Dosk3n/Tautulli_IP_Enforcer)
+- Inspired by Unraid plugins from [Squidly271](https://github.com/Squidly271)
