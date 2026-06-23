@@ -1,14 +1,13 @@
 <?xml version='1.0' standalone='yes'?>
 <!DOCTYPE PLUGIN [
-<!ENTITY name        "Tautulli IP Enforcer">
-<!ENTITY author      "jeremiejt38">
-<!ENTITY version     "2026.06.23">
-<!ENTITY launch      "Settings/tautulli-ip-enforcer">
-<!ENTITY pluginURL   "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.plg">
-<!ENTITY icon        "tautulli-ip-enforcer.png">
-<!ENTITY description "Protect your Plex server by managing banned IPs and simultaneous stream limits via Tautulli.">
+<!ENTITY name      "tautulli-ip-enforcer">
+<!ENTITY author    "jeremiejt38">
+<!ENTITY version   "2026.06.23">
+<!ENTITY launch    "Settings/tautulli-ip-enforcer">
+<!ENTITY pluginURL "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.plg">
+<!ENTITY icon      "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.png">
 ]>
-<PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" icon="&icon;" description="&description;">
+<PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" icon="&icon;">
 <CHANGES>
 ###2026.06.23
 - Version initiale
@@ -18,15 +17,12 @@
 mkdir -p /boot/config/plugins/tautulli-ip-enforcer
 curl -sSL "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.page" -o "/boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.page"
 curl -sSL "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.php" -o "/boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.php"
-curl -sSL "https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/main/tautulli-ip-enforcer.png" -o "/boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.png"
 </INLINE>
 </FILE>
 <FILE Run="/bin/bash" Method="remove">
 <INLINE>
 rm -f /boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.page
 rm -f /boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.php
-rm -f /boot/config/plugins/tautulli-ip-enforcer/tautulli-ip-enforcer.png
-rm -rf /boot/config/plugins/tautulli-ip-enforcer
 </INLINE>
 </FILE>
 </PLUGIN>
