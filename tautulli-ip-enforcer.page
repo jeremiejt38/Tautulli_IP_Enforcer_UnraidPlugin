@@ -1,0 +1,418 @@
+<?php
+/* Tautulli IP Enforcer - Unraid Plugin Page */
+/* Author: jeremiejt38 */
+
+$plugin_url = "/plugins/tautulli-ip-enforcer/";
+$plugin_config = "/boot/config/plugins/tautulli-ip-enforcer/settings.cfg";
+$default_script_path = "/mnt/user/appdata/tautulli/Tautulli_IP_Enforcer/";
+$github_repo = "https://github.com/jeremiejt38/Tautulli_IP_Enforcer.git";
+
+// Load or create settings
+if (file_exists($plugin_config)) {
+    $settings = parse_ini_file($plugin_config);
+    $script_path = $settings['script_path'] ?? $default_script_path;
+    $setup_completed = $settings['setup_completed'] ?? false;
+    $tautulli_ip = $settings['tautulli_ip'] ?? '172.17.0.20';
+    $tautulli_port = $settings['tautulli_port'] ?? '8181';
+    $tautulli_api = $settings['tautulli_api'] ?? '';
+    $blacklist_msg = $settings['blacklist_msg'] ?? 'PLEX IP ENFORCER - BLACKLISTED';
+    $concurrent_msg = $settings['concurrent_msg'] ?? 'PLEX IP ENFORCER - EXCESSIVE ACCOUNT SHARING';
+} else {
+    $script_path = $default_script_path;
+    $setup_completed = false;
+    $tautulli_ip = '172.17.0.20';
+    $tautulli_port = '8181';
+    $tautulli_api = '';
+    $blacklist_msg = 'PLEX IP ENFORCER - BLACKLISTED';
+    $concurrent_msg = 'PLEX IP ENFORCER - EXCESSIVE ACCOUNT SHARING';
+}
+
+// File paths
+$banned_ips_file = $script_path . "banned_ips.txt";
+$concurrent_limit_file = $script_path . "concurrent_ip_limit.txt";
+$enforce_log_file = $script_path . "enforce_log.txt";
+$python_script = $script_path . "tautulliIpEnforcer.py";
+
+// ===========================================
+// ACTION HANDLERS
+// ===========================================
+
+$message = "";
+$message_type = "info";
+
+// Setup Wizard Action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'run_setup') {
+    $sp = rtrim($_POST['script_path'], '/') . '/';
+    if (!is_dir($sp)) { mkdir($sp, 0755, true); }
+    exec("which git", $out, $ret);
+    if ($ret !== 0) { $message = "Erreur: Git n'est pas installe"; $message_type = "error"; }
+    else {
+        if (is_dir($sp . ".git")) { exec("cd {$sp} && git pull 2>&1", $output, $ret); }
+        else { exec("git clone {$github_repo} {$sp} 2>&1", $output, $ret); }
+        if ($ret !== 0) { $message = "Erreur clonage: " . implode(" ", $output); $message_type = "error"; }
+        else {
+            file_put_contents($sp . "banned_ips.txt", file_exists($sp . "banned_ips.txt") ? "" : "");
+            file_put_contents($sp . "concurrent_ip_limit.txt", file_exists($sp . "concurrent_ip_limit.txt") ? "" : "");
+            $config = "script_path={$sp}\nsetup_completed=1\ntautulli_ip={$tautulli_ip}\ntautulli_port={$tautulli_port}\ntautulli_api={$tautulli_api}\nblacklist_msg={$blacklist_msg}\nconcurrent_msg={$concurrent_msg}\n";
+            file_put_contents($plugin_config, $config);
+            $message = "Installation terminee!"; $message_type = "success";
+            $setup_completed = true;
+            $settings = parse_ini_file($plugin_config);
+            $script_path = $settings['script_path'];
+        }
+    }
+}
+
+// Save Settings Action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_settings') {
+    $sp = rtrim($_POST['script_path'], '/') . '/';
+    $tip = $_POST['tautulli_ip'];
+    $tp = $_POST['tautulli_port'];
+    $ta = $_POST['tautulli_api'];
+    $bm = $_POST['blacklist_msg'];
+    $cm = $_POST['concurrent_msg'];
+    $config = "script_path={$sp}\nsetup_completed=1\ntautulli_ip={$tip}\ntautulli_port={$tp}\ntautulli_api={$ta}\nblacklist_msg={$bm}\nconcurrent_msg={$cm}\n";
+    file_put_contents($plugin_config, $config);
+    updatePythonScript($sp, $tip, $tp, $ta, $bm, $cm);
+    $message = "Parametres sauvegardes!"; $message_type = "success";
+    $settings = parse_ini_file($plugin_config);
+    $setup_completed = true;
+}
+
+// BANNED IPs ACTIONS
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    switch ($_POST['action']) {
+        case 'add_banned_ip':
+            $ip = trim($_POST['ip_address']);
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                $c = file_exists($banned_ips_file) ? file_get_contents($banned_ips_file) : "";
+                $lines = array_filter(array_map('trim', explode("\n", $c)));
+                if (!in_array($ip, $lines)) { file_put_contents($banned_ips_file, $ip . "\n", FILE_APPEND); $message = "IP ajoutee"; $message_type = "success"; }
+                else { $message = "IP deja existante"; $message_type = "warning"; }
+            } else { $message = "IP invalide"; $message_type = "error"; }
+            break;
+        case 'delete_banned_ip':
+            $ip = trim($_POST['ip_address']);
+            $c = file_exists($banned_ips_file) ? file_get_contents($banned_ips_file) : "";
+            $lines = array_filter(array_map('trim', explode("\n", $c)), fn($l) => $l !== $ip);
+            file_put_contents($banned_ips_file, implode("\n", $lines) . ($lines ? "\n" : ""));
+            $message = "IP supprimee"; $message_type = "success";
+            break;
+        case 'import_banned_ips':
+            $c = trim($_POST['ips_content']);
+            $lines = array_filter(array_map('trim', explode("\n", $c)), fn($l) => filter_var($l, FILTER_VALIDATE_IP));
+            file_put_contents($banned_ips_file, implode("\n", $lines) . "\n");
+            $message = count($lines) . " IPs importees"; $message_type = "success";
+            break;
+        case 'clear_banned_ips':
+            file_put_contents($banned_ips_file, ""); $message = "Liste vidée"; $message_type = "success"; break;
+        // USER LIMITS
+        case 'add_user_limit':
+            $u = trim($_POST['username']); $l = intval($_POST['ip_limit']);
+            if (!empty($u) && $l > 0) {
+                $c = file_exists($concurrent_limit_file) ? file_get_contents($concurrent_limit_file) : "";
+                $lines = array_filter(array_map('trim', explode("\n", $c)), fn($line) => strtolower(explode(";", $line)[0]) !== strtolower($u));
+                $lines[] = "{$u};{$l}";
+                file_put_contents($concurrent_limit_file, implode("\n", $lines) . "\n");
+                $message = "Limite ajoutee"; $message_type = "success";
+            }
+            break;
+        case 'edit_user_limit':
+            $old = trim($_POST['old_username']); $new = trim($_POST['new_username']); $l = intval($_POST['ip_limit']);
+            $c = file_exists($concurrent_limit_file) ? file_get_contents($concurrent_limit_file) : "";
+            $lines = array_filter(array_map('trim', explode("\n", $c)), fn($line) => strtolower(explode(";", $line)[0]) !== strtolower($old));
+            $lines[] = "{$new};{$l}";
+            file_put_contents($concurrent_limit_file, implode("\n", $lines) . "\n");
+            $message = "Limite modifiee"; $message_type = "success";
+            break;
+        case 'delete_user_limit':
+            $u = trim($_POST['username']);
+            $c = file_exists($concurrent_limit_file) ? file_get_contents($concurrent_limit_file) : "";
+            $lines = array_filter(array_map('trim', explode("\n", $c)), fn($line) => strtolower(explode(";", $line)[0]) !== strtolower($u));
+            file_put_contents($concurrent_limit_file, implode("\n", $lines) . ($lines ? "\n" : ""));
+            $message = "Limite supprimee"; $message_type = "success";
+            break;
+        // SERVICE
+        case 'start_service': exec("systemctl start tautulliipenforcer.service 2>&1", $o, $r); $message = $r === 0 ? "Service demarre" : "Erreur"; $message_type = $r === 0 ? "success" : "error"; break;
+        case 'stop_service': exec("systemctl stop tautulliipenforcer.service 2>&1", $o, $r); $message = $r === 0 ? "Service arrete" : "Erreur"; $message_type = $r === 0 ? "success" : "error"; break;
+        case 'restart_service': exec("systemctl restart tautulliipenforcer.service 2>&1", $o, $r); $message = $r === 0 ? "Service redemarre" : "Erreur"; $message_type = $r === 0 ? "success" : "error"; break;
+        case 'install_service':
+            $sc = "[Unit]\nDescription=Tautulli IP Enforcer\nAfter=network.target\n\n[Service]\nType=simple\nRestart=always\nRestartSec=1\nUser=root\nExecStart=/bin/bash {$script_path}tautulliIpEnforcer.sh\n\n[Install]\nWantedBy=multi-user.target";
+            file_put_contents("/tmp/tie.service", $sc);
+            exec("sudo cp /tmp/tie.service /etc/systemd/system/tautulliipenforcer.service && sudo systemctl daemon-reload 2>&1", $o, $r);
+            $message = $r === 0 ? "Service installe" : "Erreur installation"; $message_type = $r === 0 ? "success" : "error";
+            break;
+    }
+}
+
+// HELPER FUNCTIONS
+function updatePythonScript($path, $ip, $port, $api, $bm, $cm) {
+    $f = $path . "tautulliIpEnforcer.py";
+    if (!file_exists($f)) return;
+    $c = file_get_contents($f);
+    $c = preg_replace('/tautulliIp\s*=\s*"[^"]*"/', "tautulliIp = \"{$ip}\"", $c);
+    $c = preg_replace('/tautulliPort\s*=\s*\d+/', "tautulliPort = {$port}", $c);
+    $c = preg_replace('/tautulliApi\s*=\s*"[^"]*"/', "tautulliApi = \"{$api}\"", $c);
+    $c = preg_replace('/blackListMsg\s*=\s*"[^"]*"/', "blackListMsg = \"{$bm}\"", $c);
+    $c = preg_replace('/concurrentMsg\s*=\s*"[^"]*"/', "concurrentMsg = \"{$cm}\"", $c);
+    file_put_contents($f, $c);
+}
+
+function getServiceStatus() {
+    exec("systemctl is-active tautulliipenforcer.service 2>&1", $o, $r); $active = ($r === 0);
+    exec("systemctl is-enabled tautulliipenforcer.service 2>&1", $o, $r); $enabled = ($r === 0);
+    return ['active' => $active, 'enabled' => $enabled];
+}
+
+function getBannedIps() {
+    global $banned_ips_file;
+    if (!file_exists($banned_ips_file)) return [];
+    return array_filter(array_map('trim', file($banned_ips_file)), fn($ip) => !empty($ip));
+}
+
+function getUserLimits() {
+    global $concurrent_limit_file;
+    if (!file_exists($concurrent_limit_file)) return [];
+    $limits = [];
+    foreach (file($concurrent_limit_file) as $line) {
+        $line = trim($line); $parts = explode(";", $line);
+        if (count($parts) === 2) $limits[] = ['username' => $parts[0], 'limit' => $parts[1]];
+    }
+    return $limits;
+}
+
+function getLogs($n = 100) {
+    global $enforce_log_file;
+    if (!file_exists($enforce_log_file)) return [];
+    $lines = file($enforce_log_file);
+    return array_slice(array_filter(array_map('trim', $lines)), -$n);
+}
+
+// Get data
+$active_tab = $_GET['tab'] ?? 'banned';
+$banned_ips = getBannedIps();
+$user_limits = getUserLimits();
+$logs = getLogs();
+$service_status = getServiceStatus();
+?>
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body { font-family: 'Open Sans', Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+.tie-container { max-width: 1200px; margin: 0 auto; }
+.tie-header { background: linear-gradient(135deg, #1a1a2e, #16213e); color: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+.tie-header h1 { margin: 0 0 10px; font-size: 24px; }
+.tie-alert { padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid; }
+.tie-alert.success { background: #d4edda; border-color: #28a745; color: #155724; }
+.tie-alert.error { background: #f8d7da; border-color: #dc3545; color: #721c24; }
+.tie-alert.warning { background: #fff3cd; border-color: #ffc107; color: #856404; }
+.tie-tabs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 0; border-bottom: 2px solid #dee2e6; padding-bottom: 0; }
+.tie-tab { padding: 12px 20px; background: #e9ecef; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; color: #495057; text-decoration: none; }
+.tie-tab:hover { background: #ced4da; }
+.tie-tab.active { background: #fff; color: #007bff; border-bottom: 2px solid #007bff; margin-bottom: -2px; font-weight: 600; }
+.tie-content { background: #fff; padding: 20px; border-radius: 0 8px 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.tie-form-group { margin-bottom: 15px; }
+.tie-form-group label { display: block; margin-bottom: 5px; font-weight: 600; }
+.tie-form-group input, .tie-form-group textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+.tie-btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; }
+.tie-btn-primary { background: #007bff; color: #fff; }
+.tie-btn-primary:hover { background: #0056b3; }
+.tie-btn-success { background: #28a745; color: #fff; }
+.tie-btn-danger { background: #dc3545; color: #fff; }
+.tie-btn-secondary { background: #6c757d; color: #fff; }
+.tie-btn-sm { padding: 6px 12px; font-size: 12px; }
+.tie-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+.tie-table th, .tie-table td { padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6; }
+.tie-table th { background: #f8f9fa; font-weight: 600; }
+.tie-empty { text-align: center; padding: 40px; color: #6c757d; }
+.tie-card { background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
+.tie-status { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.tie-status.active { background: #d4edda; color: #155724; }
+.tie-status.inactive { background: #f8d7da; color: #721c24; }
+.tie-log-box { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
+.tie-info-box { background: #e7f3ff; border: 1px solid #b3d7ff; border-radius: 6px; padding: 15px; margin-bottom: 20px; }
+.tie-warning-box { background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 15px; margin-bottom: 20px; }
+.tie-inline-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.tie-panel { display: none; }
+.tie-panel.active { display: block; }
+</style>
+</head>
+<body>
+<div class="tie-container">
+    <div class="tie-header">
+        <h1>Tautulli IP Enforcer</h1>
+        <p>Gestion des IPs bannies et limites de streams</p>
+    </div>
+    
+    <?php if ($message): ?>
+    <div class="tie-alert <?= $message_type; ?>"><?= htmlspecialchars($message); ?></div>
+    <?php endif; ?>
+    
+    <?php if (!$setup_completed): ?>
+    <!-- SETUP WIZARD -->
+    <div class="tie-content">
+        <div class="tie-info-box">
+            <strong>Pre requis</strong>
+            <p>Ce plugin necessite que <strong>Tautulli</strong> soit installe. Assurez-vous d'avoir l'adresse IP de Tautulli et votre cle API.</p>
+        </div>
+        <h2 style="margin-top:0;">Installation</h2>
+        <form method="POST">
+            <input type="hidden" name="action" value="run_setup">
+            <div class="tie-form-group">
+                <label>Emplacement du script</label>
+                <input type="text" name="script_path" value="<?= htmlspecialchars($script_path); ?>" required>
+            </div>
+            <div class="tie-form-group">
+                <label>IP Tautulli</label>
+                <input type="text" name="tautulli_ip" value="<?= htmlspecialchars($tautulli_ip); ?>">
+            </div>
+            <div class="tie-form-group">
+                <label>Port Tautulli</label>
+                <input type="text" name="tautulli_port" value="<?= htmlspecialchars($tautulli_port); ?>">
+            </div>
+            <div class="tie-form-group">
+                <label>Cle API</label>
+                <input type="text" name="tautulli_api" value="<?= htmlspecialchars($tautulli_api); ?>">
+            </div>
+            <button type="submit" class="tie-btn tie-btn-primary">Installer</button>
+        </form>
+    </div>
+    
+    <?php else: ?>
+    
+    <!-- TABS -->
+    <div class="tie-tabs">
+        <a href="?tab=banned" class="tie-tab <?= $active_tab === 'banned' ? 'active' : ''; ?>">IPs Bannies</a>
+        <a href="?tab=limits" class="tie-tab <?= $active_tab === 'limits' ? 'active' : ''; ?>">Limites Utilisateurs</a>
+        <a href="?tab=logs" class="tie-tab <?= $active_tab === 'logs' ? 'active' : ''; ?>">Logs</a>
+        <a href="?tab=settings" class="tie-tab <?= $active_tab === 'settings' ? 'active' : ''; ?>">Parametres</a>
+        <a href="?tab=service" class="tie-tab <?= $active_tab === 'service' ? 'active' : ''; ?>">Service</a>
+    </div>
+    
+    <div class="tie-content">
+    <!-- BANNED IPs -->
+    <div class="tie-panel <?= $active_tab === 'banned' ? 'active' : ''; ?>">
+        <h2 style="margin-top:0;">IPs Bannies</h2>
+        <div class="tie-card">
+            <form method="POST" class="tie-inline-form">
+                <input type="hidden" name="action" value="add_banned_ip">
+                <div class="tie-form-group"><input type="text" name="ip_address" placeholder="Ex: 192.168.1.100" required></div>
+                <button type="submit" class="tie-btn tie-btn-primary">Ajouter</button>
+            </form>
+        </div>
+        <?php if (empty($banned_ips)): ?>
+        <div class="tie-empty"><p>Aucune IP bannie</p></div>
+        <?php else: ?>
+        <table class="tie-table">
+            <thead><tr><th>IP</th><th style="width:120px;">Action</th></tr></thead>
+            <tbody>
+            <?php foreach ($banned_ips as $ip): ?>
+                <tr>
+                    <td><code><?= htmlspecialchars($ip); ?></code></td>
+                    <td>
+                        <form method="POST" style="display:inline;">
+                            <input type="hidden" name="action" value="delete_banned_ip">
+                            <input type="hidden" name="ip_address" value="<?= htmlspecialchars($ip); ?>">
+                            <button type="submit" class="tie-btn tie-btn-danger tie-btn-sm" onclick="return confirm('Supprimer cette IP?');">Supprimer</button>
+                        </form>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
+    </div>
+    
+    <!-- USER LIMITS -->
+    <div class="tie-panel <?= $active_tab === 'limits' ? 'active' : ''; ?>">
+        <h2 style="margin-top:0;">Limites Utilisateurs</h2>
+        <div class="tie-card">
+            <form method="POST" class="tie-inline-form">
+                <input type="hidden" name="action" value="add_user_limit">
+                <div class="tie-form-group"><input type="text" name="username" placeholder="Nom utilisateur" required></div>
+                <div class="tie-form-group" style="max-width:120px;"><input type="number" name="ip_limit" value="1" min="1" required></div>
+                <button type="submit" class="tie-btn tie-btn-primary">Ajouter</button>
+            </form>
+        </div>
+        <?php if (empty($user_limits)): ?>
+        <div class="tie-empty"><p>Aucune limite definie</p></div>
+        <?php else: ?>
+        <table class="tie-table">
+            <thead><tr><th>Utilisateur</th><th>Limite IPs</th><th style="width:200px;">Actions</th></tr></thead>
+            <tbody>
+            <?php foreach ($user_limits as $limit): ?>
+                <tr>
+                    <td><?= htmlspecialchars($limit['username']); ?></td>
+                    <td><?= htmlspecialchars($limit['limit']); ?> IP(s)</td>
+                    <td>
+                        <form method="POST" style="display:inline;">
+                            <input type="hidden" name="action" value="delete_user_limit">
+                            <input type="hidden" name="username" value="<?= htmlspecialchars($limit['username']); ?>">
+                            <button type="submit" class="tie-btn tie-btn-danger tie-btn-sm">Supprimer</button>
+                        </form>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
+    </div>
+    
+    <!-- LOGS -->
+    <div class="tie-panel <?= $active_tab === 'logs' ? 'active' : ''; ?>">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+            <h2 style="margin:0;">Logs</h2>
+            <button onclick="location.reload()" class="tie-btn tie-btn-secondary tie-btn-sm">Actualiser</button>
+        </div>
+        <?php if (empty($logs)): ?>
+        <div class="tie-empty"><p>Aucun log</p></div>
+        <?php else: ?>
+        <div class="tie-log-box"><?php foreach ($logs as $log): ?><?= htmlspecialchars($log); ?>
+
+<?php endforeach; ?></div>
+        <?php endif; ?>
+    </div>
+    
+    <!-- SETTINGS -->
+    <div class="tie-panel <?= $active_tab === 'settings' ? 'active' : ''; ?>">
+        <h2 style="margin-top:0;">Parametres</h2>
+        <form method="POST">
+            <input type="hidden" name="action" value="save_settings">
+            <div class="tie-form-group"><label>Emplacement</label><input type="text" name="script_path" value="<?= htmlspecialchars($script_path); ?>" required></div>
+            <div class="tie-form-group"><label>IP Tautulli</label><input type="text" name="tautulli_ip" value="<?= htmlspecialchars($tautulli_ip); ?>"></div>
+            <div class="tie-form-group"><label>Port</label><input type="text" name="tautulli_port" value="<?= htmlspecialchars($tautulli_port); ?>"></div>
+            <div class="tie-form-group"><label>Cle API</label><input type="text" name="tautulli_api" value="<?= htmlspecialchars($tautulli_api); ?>"></div>
+            <div class="tie-form-group"><label>Message IP bannie</label><input type="text" name="blacklist_msg" value="<?= htmlspecialchars($blacklist_msg); ?>"></div>
+            <div class="tie-form-group"><label>Message limite</label><input type="text" name="concurrent_msg" value="<?= htmlspecialchars($concurrent_msg); ?>"></div>
+            <button type="submit" class="tie-btn tie-btn-success">Sauvegarder</button>
+        </form>
+    </div>
+    
+    <!-- SERVICE -->
+    <div class="tie-panel <?= $active_tab === 'service' ? 'active' : ''; ?>">
+        <h2 style="margin-top:0;">Service systemd</h2>
+        <div class="tie-card">
+            <p>Statut: <span class="tie-status <?= $service_status['active'] ? 'active' : 'inactive'; ?>"><?= $service_status['active'] ? 'Actif' : 'Inactif'; ?></span></p>
+            <p>Au demarrage: <span class="tie-status <?= $service_status['enabled'] ? 'active' : 'inactive'; ?>"><?= $service_status['enabled'] ? 'Active' : 'Desactive'; ?></span></p>
+        </div>
+        <div class="tie-card">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <form method="POST" style="display:inline;"><input type="hidden" name="action" value="start_service"><button type="submit" class="tie-btn tie-btn-success">Demarrer</button></form>
+                <form method="POST" style="display:inline;"><input type="hidden" name="action" value="stop_service"><button type="submit" class="tie-btn tie-btn-danger">Arreter</button></form>
+                <form method="POST" style="display:inline;"><input type="hidden" name="action" value="restart_service"><button type="submit" class="tie-btn tie-btn-primary">Redemarrer</button></form>
+                <form method="POST" style="display:inline;"><input type="hidden" name="action" value="install_service"><button type="submit" class="tie-btn tie-btn-secondary">Installer service</button></form>
+            </div>
+        </div>
+        <div class="tie-info-box">
+            <p>Le service fait tourner le script en boucle. Utilisez 'sudo systemctl enable tautulliipenforcer.service' pour l'activer au demarrage.</p>
+        </div>
+    </div>
+    
+    </div>
+    <?php endif; ?>
+</div>
+
+<script><?php if ($active_tab === 'logs'): ?>setTimeout(function(){location.reload();},30000);<?php endif; ?></script>
+</body>
+</html>
