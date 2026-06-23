@@ -1,3 +1,8 @@
+Menu="Settings"
+Title="Tautulli IP Enforcer"
+Icon="tautulli-ip-enforcer.png"
+Tag="shield"
+---
 <?php
 /* Tautulli IP Enforcer - Unraid Plugin Page */
 /* Author: jeremiejt38 */
@@ -241,8 +246,18 @@ body { font-family: 'Open Sans', Arial, sans-serif; background: #f5f5f5; margin:
 <body>
 <div class="tie-container">
     <div class="tie-header">
-        <h1>Tautulli IP Enforcer</h1>
-        <p>Gestion des IPs bannies et limites de streams</p>
+        <div style="display:flex;align-items:center;gap:15px;">
+            <div style="font-size:48px;">🛡️</div>
+            <div>
+                <h1 style="margin:0 0 5px;">Tautulli IP Enforcer</h1>
+                <p style="margin:0;opacity:0.85;font-size:14px;">Protégez votre serveur Plex en contrôlant les IPs et les streams simultanés via Tautulli.</p>
+            </div>
+        </div>
+        <div style="margin-top:15px;display:flex;gap:15px;font-size:13px;opacity:0.7;">
+            <span>Version 2026.06.23</span>
+            <span>•</span>
+            <span>by jeremiejt38</span>
+        </div>
     </div>
     
     <?php if ($message): ?>
