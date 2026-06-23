@@ -5,11 +5,12 @@ Tag="shield"
 ---
 <?php
 /* Tautulli IP Enforcer - Unraid Plugin Page */
-/* Author: jeremiejt38 */
+/* Author: jeremiejt38 (patched) */
 /* Description: Protégez votre serveur Plex en contrôlant les IPs bannies et les limites de streams simultanés via Tautulli. */
 
 $plugin_url = "/plugins/tautulli-ip-enforcer/";
-$plugin_config = "/boot/config/plugins/tautulli-ip-enforcer/settings.cfg";
+$plugin_dir = "/boot/config/plugins/tautulli-ip-enforcer/";
+$plugin_config = $plugin_dir . "settings.cfg";
 $default_script_path = "/mnt/user/appdata/tautulli/Tautulli_IP_Enforcer/";
 $github_repo = "https://github.com/jeremiejt38/Tautulli_IP_Enforcer.git";
 
@@ -35,10 +36,10 @@ if (file_exists($plugin_config)) {
 }
 
 // File paths
-$banned_ips_file = $script_path . "banned_ips.txt";
-$concurrent_limit_file = $script_path . "concurrent_ip_limit.txt";
-$enforce_log_file = $script_path . "enforce_log.txt";
-$python_script = $script_path . "tautulliIpEnforcer.py";
+$banned_ips_file = rtrim($script_path, '/') . "/banned_ips.txt";
+$concurrent_limit_file = rtrim($script_path, '/') . "/concurrent_ip_limit.txt";
+$enforce_log_file = rtrim($script_path, '/') . "/enforce_log.txt";
+$python_script = rtrim($script_path, '/') . "/tautulliIpEnforcer.py";
 
 // ===========================================
 // ACTION HANDLERS
@@ -54,18 +55,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exec("which git", $out, $ret);
     if ($ret !== 0) { $message = "Erreur: Git n'est pas installe"; $message_type = "error"; }
     else {
-        if (is_dir($sp . ".git")) { exec("cd {$sp} && git pull 2>&1", $output, $ret); }
-        else { exec("git clone {$github_repo} {$sp} 2>&1", $output, $ret); }
+        if (is_dir($sp . ".git")) { exec("cd " . escapeshellarg($sp) . " && git pull 2>&1", $output, $ret); }
+        else { exec("git clone " . escapeshellarg($github_repo) . " " . escapeshellarg($sp) . " 2>&1", $output, $ret); }
         if ($ret !== 0) { $message = "Erreur clonage: " . implode(" ", $output); $message_type = "error"; }
         else {
-            file_put_contents($sp . "banned_ips.txt", file_exists($sp . "banned_ips.txt") ? "" : "");
-            file_put_contents($sp . "concurrent_ip_limit.txt", file_exists($sp . "concurrent_ip_limit.txt") ? "" : "");
+            // create files if missing, use LOCK_EX to avoid races
+            if (!file_exists($sp . "banned_ips.txt")) { file_put_contents($sp . "banned_ips.txt", "", LOCK_EX); }
+            if (!file_exists($sp . "concurrent_ip_limit.txt")) { file_put_contents($sp . "concurrent_ip_limit.txt", "", LOCK_EX); }
             $config = "script_path={$sp}\nsetup_completed=1\ntautulli_ip={$tautulli_ip}\ntautulli_port={$tautulli_port}\ntautulli_api={$tautulli_api}\nblacklist_msg={$blacklist_msg}\nconcurrent_msg={$concurrent_msg}\n";
-            file_put_contents($plugin_config, $config);
+            file_put_contents($plugin_config, $config, LOCK_EX);
             $message = "Installation terminee!"; $message_type = "success";
             $setup_completed = true;
             $settings = parse_ini_file($plugin_config);
             $script_path = $settings['script_path'];
+            // Ensure plugin bin scripts are executable if present
+            if (is_dir($plugin_dir . 'bin')) {
+                @chmod($plugin_dir . 'bin/start.sh', 0755);
+                @chmod($plugin_dir . 'bin/stop.sh', 0755);
+                @chmod($plugin_dir . 'bin/restart.sh', 0755);
+                @chmod($plugin_dir . 'bin/status.sh', 0755);
+            }
         }
     }
 }
@@ -79,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $bm = $_POST['blacklist_msg'];
     $cm = $_POST['concurrent_msg'];
     $config = "script_path={$sp}\nsetup_completed=1\ntautulli_ip={$tip}\ntautulli_port={$tp}\ntautulli_api={$ta}\nblacklist_msg={$bm}\nconcurrent_msg={$cm}\n";
-    file_put_contents($plugin_config, $config);
+    file_put_contents($plugin_config, $config, LOCK_EX);
     updatePythonScript($sp, $tip, $tp, $ta, $bm, $cm);
     $message = "Parametres sauvegardes!"; $message_type = "success";
     $settings = parse_ini_file($plugin_config);
@@ -94,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             if (filter_var($ip, FILTER_VALIDATE_IP)) {
                 $c = file_exists($banned_ips_file) ? file_get_contents($banned_ips_file) : "";
                 $lines = array_filter(array_map('trim', explode("\n", $c)));
-                if (!in_array($ip, $lines)) { file_put_contents($banned_ips_file, $ip . "\n", FILE_APPEND); $message = "IP ajoutee"; $message_type = "success"; }
+                if (!in_array($ip, $lines)) { file_put_contents($banned_ips_file, $ip . "\n", FILE_APPEND | LOCK_EX); $message = "IP ajoutee"; $message_type = "success"; }
                 else { $message = "IP deja existante"; $message_type = "warning"; }
             } else { $message = "IP invalide"; $message_type = "error"; }
             break;
@@ -102,17 +111,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $ip = trim($_POST['ip_address']);
             $c = file_exists($banned_ips_file) ? file_get_contents($banned_ips_file) : "";
             $lines = array_filter(array_map('trim', explode("\n", $c)), fn($l) => $l !== $ip);
-            file_put_contents($banned_ips_file, implode("\n", $lines) . ($lines ? "\n" : ""));
+            file_put_contents($banned_ips_file, implode("\n", $lines) . ($lines ? "\n" : ""), LOCK_EX);
             $message = "IP supprimee"; $message_type = "success";
             break;
         case 'import_banned_ips':
             $c = trim($_POST['ips_content']);
             $lines = array_filter(array_map('trim', explode("\n", $c)), fn($l) => filter_var($l, FILTER_VALIDATE_IP));
-            file_put_contents($banned_ips_file, implode("\n", $lines) . "\n");
+            file_put_contents($banned_ips_file, implode("\n", $lines) . "\n", LOCK_EX);
             $message = count($lines) . " IPs importees"; $message_type = "success";
             break;
         case 'clear_banned_ips':
-            file_put_contents($banned_ips_file, ""); $message = "Liste vidée"; $message_type = "success"; break;
+            file_put_contents($banned_ips_file, "", LOCK_EX); $message = "Liste vidée"; $message_type = "success"; break;
         // USER LIMITS
         case 'add_user_limit':
             $u = trim($_POST['username']); $l = intval($_POST['ip_limit']);
@@ -120,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $c = file_exists($concurrent_limit_file) ? file_get_contents($concurrent_limit_file) : "";
                 $lines = array_filter(array_map('trim', explode("\n", $c)), fn($line) => strtolower(explode(";", $line)[0]) !== strtolower($u));
                 $lines[] = "{$u};{$l}";
-                file_put_contents($concurrent_limit_file, implode("\n", $lines) . "\n");
+                file_put_contents($concurrent_limit_file, implode("\n", $lines) . "\n", LOCK_EX);
                 $message = "Limite ajoutee"; $message_type = "success";
             }
             break;
@@ -129,32 +138,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $c = file_exists($concurrent_limit_file) ? file_get_contents($concurrent_limit_file) : "";
             $lines = array_filter(array_map('trim', explode("\n", $c)), fn($line) => strtolower(explode(";", $line)[0]) !== strtolower($old));
             $lines[] = "{$new};{$l}";
-            file_put_contents($concurrent_limit_file, implode("\n", $lines) . "\n");
+            file_put_contents($concurrent_limit_file, implode("\n", $lines) . "\n", LOCK_EX);
             $message = "Limite modifiee"; $message_type = "success";
             break;
         case 'delete_user_limit':
             $u = trim($_POST['username']);
             $c = file_exists($concurrent_limit_file) ? file_get_contents($concurrent_limit_file) : "";
             $lines = array_filter(array_map('trim', explode("\n", $c)), fn($line) => strtolower(explode(";", $line)[0]) !== strtolower($u));
-            file_put_contents($concurrent_limit_file, implode("\n", $lines) . ($lines ? "\n" : ""));
+            file_put_contents($concurrent_limit_file, implode("\n", $lines) . ($lines ? "\n" : ""), LOCK_EX);
             $message = "Limite supprimee"; $message_type = "success";
             break;
-        // SERVICE
-        case 'start_service': exec("systemctl start tautulliipenforcer.service 2>&1", $o, $r); $message = $r === 0 ? "Service demarre" : "Erreur"; $message_type = $r === 0 ? "success" : "error"; break;
-        case 'stop_service': exec("systemctl stop tautulliipenforcer.service 2>&1", $o, $r); $message = $r === 0 ? "Service arrete" : "Erreur"; $message_type = $r === 0 ? "success" : "error"; break;
-        case 'restart_service': exec("systemctl restart tautulliipenforcer.service 2>&1", $o, $r); $message = $r === 0 ? "Service redemarre" : "Erreur"; $message_type = $r === 0 ? "success" : "error"; break;
+        // SERVICE - replaced systemd usage with plugin bin scripts (Unraid-compatible)
+        case 'start_service':
+            $script = $plugin_dir . 'bin/start.sh';
+            exec('/bin/bash ' . escapeshellarg($script) . ' 2>&1', $o, $r);
+            $message = $r === 0 ? "Service demarre" : "Erreur demarrage: " . implode(' ', $o); $message_type = $r === 0 ? "success" : "error";
+            break;
+        case 'stop_service':
+            $script = $plugin_dir . 'bin/stop.sh';
+            exec('/bin/bash ' . escapeshellarg($script) . ' 2>&1', $o, $r);
+            $message = $r === 0 ? "Service arrete" : "Erreur arret: " . implode(' ', $o); $message_type = $r === 0 ? "success" : "error";
+            break;
+        case 'restart_service':
+            $script = $plugin_dir . 'bin/restart.sh';
+            exec('/bin/bash ' . escapeshellarg($script) . ' 2>&1', $o, $r);
+            $message = $r === 0 ? "Service redemarre" : "Erreur restart: " . implode(' ', $o); $message_type = $r === 0 ? "success" : "error";
+            break;
         case 'install_service':
-            $sc = "[Unit]\nDescription=Tautulli IP Enforcer\nAfter=network.target\n\n[Service]\nType=simple\nRestart=always\nRestartSec=1\nUser=root\nExecStart=/bin/bash {$script_path}tautulliIpEnforcer.sh\n\n[Install]\nWantedBy=multi-user.target";
-            file_put_contents("/tmp/tie.service", $sc);
-            exec("sudo cp /tmp/tie.service /etc/systemd/system/tautulliipenforcer.service && sudo systemctl daemon-reload 2>&1", $o, $r);
-            $message = $r === 0 ? "Service installe" : "Erreur installation"; $message_type = $r === 0 ? "success" : "error";
+            // Unraid ne supporte généralement pas systemd. On propose la gestion via les scripts du plugin.
+            $message = "Installation systemd non supportee sur Unraid. Utilisez Demarrer/Arreter pour lancer le script (gestion par PID)."; $message_type = "warning";
             break;
     }
 }
 
 // HELPER FUNCTIONS
 function updatePythonScript($path, $ip, $port, $api, $bm, $cm) {
-    $f = $path . "tautulliIpEnforcer.py";
+    $f = rtrim($path, '/') . "/tautulliIpEnforcer.py";
     if (!file_exists($f)) return;
     $c = file_get_contents($f);
     $c = preg_replace('/tautulliIp\s*=\s*"[^"]*"/', "tautulliIp = \"{$ip}\"", $c);
@@ -162,12 +181,18 @@ function updatePythonScript($path, $ip, $port, $api, $bm, $cm) {
     $c = preg_replace('/tautulliApi\s*=\s*"[^"]*"/', "tautulliApi = \"{$api}\"", $c);
     $c = preg_replace('/blackListMsg\s*=\s*"[^"]*"/', "blackListMsg = \"{$bm}\"", $c);
     $c = preg_replace('/concurrentMsg\s*=\s*"[^"]*"/', "concurrentMsg = \"{$cm}\"", $c);
-    file_put_contents($f, $c);
+    file_put_contents($f, $c, LOCK_EX);
 }
 
 function getServiceStatus() {
-    exec("systemctl is-active tautulliipenforcer.service 2>&1", $o, $r); $active = ($r === 0);
-    exec("systemctl is-enabled tautulliipenforcer.service 2>&1", $o, $r); $enabled = ($r === 0);
+    global $plugin_dir;
+    $pidfile = $plugin_dir . 'tautulliipenforcer.pid';
+    $active = false; $enabled = false;
+    if (file_exists($pidfile)) {
+        $pid = trim(file_get_contents($pidfile));
+        if ($pid && posix_kill((int)$pid, 0)) { $active = true; }
+    }
+    // enabled concept not applicable; leave false
     return ['active' => $active, 'enabled' => $enabled];
 }
 
@@ -408,7 +433,7 @@ body { font-family: 'Open Sans', Arial, sans-serif; background: #f5f5f5; margin:
     
     <!-- SERVICE -->
     <div class="tie-panel <?= $active_tab === 'service' ? 'active' : ''; ?>">
-        <h2 style="margin-top:0;">Service systemd</h2>
+        <h2 style="margin-top:0;">Service (gestion via scripts)</h2>
         <div class="tie-card">
             <p>Statut: <span class="tie-status <?= $service_status['active'] ? 'active' : 'inactive'; ?>"><?= $service_status['active'] ? 'Actif' : 'Inactif'; ?></span></p>
             <p>Au demarrage: <span class="tie-status <?= $service_status['enabled'] ? 'active' : 'inactive'; ?>"><?= $service_status['enabled'] ? 'Active' : 'Desactive'; ?></span></p>
@@ -422,7 +447,7 @@ body { font-family: 'Open Sans', Arial, sans-serif; background: #f5f5f5; margin:
             </div>
         </div>
         <div class="tie-info-box">
-            <p>Le service fait tourner le script en boucle. Utilisez 'sudo systemctl enable tautulliipenforcer.service' pour l'activer au demarrage.</p>
+            <p>Le service est géré par des scripts fournis dans le plugin (bin/). Unraid n'utilise généralement pas systemd ; utilisez les boutons Demarrer/Arreter/Redemarrer fournis ci-dessus.</p>
         </div>
     </div>
     
