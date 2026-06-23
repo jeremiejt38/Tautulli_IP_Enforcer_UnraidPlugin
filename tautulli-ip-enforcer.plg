@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<plugin name="Tautulli IP Enforcer" author="jeremiejt38" version="1.0.0" support="https://github.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin">
+<plugin name="Tautulli IP Enforcer" author="jeremiejt38" version="2026.06.23" support="https://github.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin">
     <name>Tautulli IP Enforcer</name>
-    <description>Plugin to manage banned IPs and user stream limits for Tautulli/Plex</description>
+    <description>Plugin to manage banned IPs and user stream limits for Tautulli/Plex USING Fork of Dosk3n/Tautulli_IP_Enforcer.</description>
     <author>jeremiejt38</author>
-    <version>1.0.0</version>
+    <version>2026.06.23</version>
     <min_version>6.0</min_version>
     <icon>https://raw.githubusercontent.com/jeremiejt38/Tautulli_IP_Enforcer_UnraidPlugin/master/icon.png</icon>
     <install><![CDATA[
